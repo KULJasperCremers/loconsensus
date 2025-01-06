@@ -1,0 +1,7 @@
+# loconsensus
+numpy
+numba
+joblib
+
+# experiments
+git+https://github.com/ML-KULeuven/locomotif.git@main#egg=dtai-locomotif
