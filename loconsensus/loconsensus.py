@@ -5,10 +5,11 @@ import numpy as np
 from joblib import Parallel, delayed
 from numba import boolean, float32, float64, int32, njit, prange, typed, types
 from numba.experimental import jitclass
-from utils import offset_indexer, row_col_from_cindex
+
+from loconsensus.utils import find_timeseries_index, offset_indexer, row_col_from_cindex
 
 
-def apply_loconsensus(ts_list, l_min, rho, l_max, nb=None, overlap=0.0):
+def apply_loconsensus(ts_list, l_min, l_max, rho, nb=None, overlap=0.0):
     """Apply the LoCosensus algorithm to find consensus motifs in a list of timeseries.
 
     Args:
@@ -22,6 +23,7 @@ def apply_loconsensus(ts_list, l_min, rho, l_max, nb=None, overlap=0.0):
 
     """
     ts_lengths = [len(ts) for ts in ts_list]
+
     n = len(ts_list)
     offset_indices = offset_indexer(n)
     global_offsets = np.cumsum([0] + ts_lengths, dtype=np.int32)
@@ -29,6 +31,7 @@ def apply_loconsensus(ts_list, l_min, rho, l_max, nb=None, overlap=0.0):
 
     lccs = []
     args_list = []
+
     for cindex, (ts1, ts2) in enumerate(combinations_with_replacement(ts_list, 2)):
         lcc = get_lococonsensus_instance(
             ts1, ts2, global_offsets, offset_indices[cindex], l_min, rho, cindex, n
@@ -162,7 +165,7 @@ class LoCoConsensus:
 
         if self.is_diagonal:
             self._paths.append(
-                gpath_class.GlobalPath(
+                GlobalPath(
                     gdiagonal.astype(np.int32),
                     np.ones(len(diagonal)).astype(np.float32),
                 )
@@ -177,19 +180,17 @@ class LoCoConsensus:
 
             if self.is_diagonal:
                 path_sims = self._sm[0][i, j]
-                self._paths.append(gpath_class.GlobalPath(gpath, path_sims))
+                self._paths.append(GlobalPath(gpath, path_sims))
                 gpath_mir[:, 0] = np.copy(path[:, 1]) + self.rstart
                 gpath_mir[:, 1] = np.copy(path[:, 0]) + self.rstart
-                self._paths.append(gpath_class.GlobalPath(gpath_mir, path_sims))
+                self._paths.append(GlobalPath(gpath_mir, path_sims))
             else:
                 path_sims = self._sm[1][i, j]
-                self._paths.append(gpath_class.GlobalPath(gpath, path_sims))
+                self._paths.append(GlobalPath(gpath, path_sims))
                 mir_path_sims = self._sm[1].T[j, i]
                 gpath_mir[:, 0] = np.copy(path[:, 1]) + self.cstart
                 gpath_mir[:, 1] = np.copy(path[:, 0]) + self.rstart
-                self._mirrored_paths.append(
-                    gpath_class.GlobalPath(gpath_mir, mir_path_sims)
-                )
+                self._mirrored_paths.append(GlobalPath(gpath_mir, mir_path_sims))
 
     def get_paths(self):
         if self._mirrored_paths is not None:
@@ -494,24 +495,33 @@ class MotifConsensus:
 
             b, e = best_candidate
             gc = self.global_columns[best_cindex]
-            ips, csims = gc.induced_paths(b, e, mask)
+            ips = gc.induced_paths(b, e, mask)
             motif_set = vertical_projections(ips)
             for bm, em in motif_set:
                 l = em - bm
                 mask[bm + int(overlap * l) - 1 : em - int(overlap * l)] = True
 
+            """
+            This enables the return of local motifs instead. DONT forget to change the yield!
+
+            local_motif_set = []
+            for ip in ips:
+                lp = vertical_projection(ip, self.global_offsets)
+                local_motif_set.append(lp)
+            """
             for cindex, cc in enumerate(self.ccs):
                 if cindex == best_cindex or not cc:
                     continue
                 (b2, e2), _, _ = cc
                 gc2 = self.global_columns[cindex]
-                ips2, _ = gc2.induced_paths(b2, e2, mask)
+                ips2 = gc2.induced_paths(b2, e2, mask)
                 if np.any(mask[b2:e2]) or len(ips2) < 2:
                     self.ccs[cindex] = None
             self.ccs[best_cindex] = None
 
             current_nb += 1
-            yield (b, e), motif_set, csims, ips, best_fitness
+            yield (b, e), motif_set, ips, best_fitness
+            # yield (b, e), local_motif_set, ips, best_fitness
 
 
 def _process_candidate(args):
@@ -527,8 +537,10 @@ def vertical_projections(paths):
     return [(p[0][0], p[len(p) - 1][0] + 1) for p in paths]
 
 
-def vertical_projection(path):
-    return (path[0][0], path[len(path) - 1][0] + 1)
+def vertical_projection(path, goffsets):
+    idx = find_timeseries_index(path[0][0], goffsets)
+    lp = path - (goffsets[idx], goffsets[idx])
+    return (lp[0][0], lp[len(lp) - 1][0] + 1)
 
 
 class GlobalColumn:
@@ -571,32 +583,15 @@ class GlobalColumn:
 
     def induced_paths(self, b, e, mask):
         induced_paths = []
-        csims = []
-
-        # normalization
-        total_length = 0
-        valid_paths = []
-        path_indices = []
 
         for p in self._column_paths:
             if p.gj1 <= b and e <= p.gjl:
                 kb, ke = p.find_gj(b), p.find_gj(e - 1)
                 bm, em = p[kb][0], p[ke][0] + 1
                 if not np.any(mask[bm:em]):
-                    valid_paths.append(p)
-                    path_indices.append((kb, ke))
-                    total_length += ke - kb + 1
-
-        for p, (kb, ke) in zip(valid_paths, path_indices):
-            ip = np.copy(p.path[kb : ke + 1])
-            induced_paths.append(ip)
-
-            # normalization
-            path_sim = p.cumsim[ke + 1] - p.cumsim[kb]
-            nsim = path_sim / total_length
-            csims.append(nsim)
-
-        return induced_paths, csims
+                    ip = np.copy(p.path[kb : ke + 1])
+                    induced_paths.append(ip)
+        return induced_paths
 
 
 @njit(
@@ -604,7 +599,7 @@ class GlobalColumn:
         boolean[:],
         boolean[:],
         boolean[:],
-        types.ListType(gpath_class.GlobalPath.class_type.instance_type),  # type:ignore
+        types.ListType(GlobalPath.class_type.instance_type),  # type:ignore
         int32,
         int32,
         int32,

@@ -15,3 +15,9 @@ def row_col_from_cindex(cindex, n):
         r += 1
     c = r + cindex
     return r, c
+
+
+def find_timeseries_index(gindex, goffsets):
+    for i in range(len(goffsets) - 1):
+        if goffsets[i] <= gindex < goffsets[i + 1]:
+            return i
