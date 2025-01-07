@@ -21,12 +21,11 @@ class ExperimentGeneratorBase:
         self.config = config
 
     def generate_experiment(self):
-        motif = self.generate_base_motif()
         ts_list, m_pos_list = [], []
 
         for i in range(self.config.n_ts):
             ts = self.generate_noisy_ts()
-            motif_for_ts = self.post_process_motif(motif)
+            motif_for_ts = self.motifs[i]
             pos = self.place_motif_randomly(ts, motif_for_ts)
             ts = z_normalize(ts)
             ts_list.append(ts)
@@ -56,9 +55,6 @@ class ExperimentGeneratorBase:
 
         return motif
 
-    def post_process_motif(self, motif):
-        return motif
-
     def generate_noisy_ts(self):
         length = self.config.len_ts
         n_dims = self.config.n_dims
@@ -83,13 +79,15 @@ class ExperimentGeneratorBase:
 class ExperimentStaticMotif(ExperimentGeneratorBase):
     def __init__(self, config):
         super().__init__(config)
-        self.config.m_warping_std = 0.0
-        self.config.len_std = 0.0
+        motif = self.generate_base_motif()
+        self.motifs = [motif for _ in range(config.n_ts)]
 
 
 class ExperimentWarpedMotif(ExperimentGeneratorBase):
     def __init__(self, config):
         super().__init__(config)
+        motif = self.generate_base_motif()
+        self.motifs = [self.post_process_motif(motif) for _ in range(config.n_ts)]
 
     def post_process_motif(self, motif):
         return self.add_warping(motif)
@@ -118,12 +116,18 @@ class ExperimentWarpedMotif(ExperimentGeneratorBase):
 class ExperimentWarpedVariableLengthMotif(ExperimentWarpedMotif):
     def __init__(self, config: ExperimentConfig):
         super().__init__(config)
+        self.motifs = [
+            self.post_process_motif(self.generate_base_motif())
+            for _ in range(config.n_ts)
+        ]
 
     def generate_base_motif(self):
         mean_len = self.config.len_base_motif
         len_std = self.config.len_std
 
         length = int(max(5, np.round(np.random.normal(mean_len, len_std))))
+        print(length)
+
         n_dims = self.config.n_dims
 
         t = np.linspace(0, 2 * np.pi, length)
