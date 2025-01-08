@@ -39,7 +39,8 @@ def apply_loconsensus(ts_list, l_min, l_max, rho, nb=None, overlap=0.0):
         lccs.append(lcc)
         args_list.append(lcc)
 
-    n_threads = multiprocessing.cpu_count()
+    # n_threads = multiprocessing.cpu_count()
+    n_threads = 2
 
     def process_comparison(lcc):
         lcc.apply_loco()
@@ -520,7 +521,7 @@ class MotifConsensus:
             self.ccs[best_cindex] = None
 
             current_nb += 1
-            yield (b, e), motif_set, ips, best_fitness
+            yield (b, e), motif_set, _, best_fitness
             # yield (b, e), local_motif_set, ips, best_fitness
 
 
@@ -697,7 +698,9 @@ def _find_best_candidate(
             # weighted harmonic score
             fit = 0.0
             if n_coverage != 0 or n_score != 0:
-                w1, w2 = 0.25, 0.75
+                # w1, w2 = 0.25, 0.75
+                # lcm weights:
+                w1, w2 = 0.5, 0.5
                 fit = (
                     (w1 + w2)
                     * (n_coverage * n_score)

@@ -2,11 +2,15 @@
 numpy
 numba
 joblib
-matplotlib
+
 
 # experiments
 git+https://github.com/ML-KULeuven/locomotif.git@main#egg=dtai-locomotif
 git+https://github.com/daanvw/tsmd-evaluation.git@main#egg=tsmd-evaluation
+dtaidistnace
 seriesdistancematrix
 stumpy
 frm-miner
+matplotlib
+scipy
+scikit-learn
