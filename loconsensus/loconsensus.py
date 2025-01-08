@@ -39,8 +39,7 @@ def apply_loconsensus(ts_list, l_min, l_max, rho, nb=None, overlap=0.0):
         lccs.append(lcc)
         args_list.append(lcc)
 
-    # n_threads = multiprocessing.cpu_count()
-    n_threads = 2
+    n_threads = multiprocessing.cpu_count()
 
     def process_comparison(lcc):
         lcc.apply_loco()
