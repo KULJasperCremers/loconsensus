@@ -1,7 +1,9 @@
 # loconsensus
 python version <3.13
 
-pip install ./requirements
+```
+pip install -r ./requirements
+```
 
 loconsensus => ./loconsensus
 - subjects.pkl contains all the preprocessed data of the PAMAP2 dataset
