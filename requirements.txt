@@ -1,4 +1,5 @@
 # loconsensus
+.
 numpy
 numba
 joblib
@@ -7,10 +8,10 @@ joblib
 # experiments
 git+https://github.com/ML-KULeuven/locomotif.git@main#egg=dtai-locomotif
 git+https://github.com/daanvw/tsmd-evaluation.git@main#egg=tsmd-evaluation
-dtaidistnace
-seriesdistancematrix
-stumpy
-frm-miner
+dtaidistance
 matplotlib
 scipy
 scikit-learn
+#seriesdistancematrix
+#stumpy
+#frm-miner
